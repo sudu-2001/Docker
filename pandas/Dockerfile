@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose the internal Flask application port
-EXPOSE 5000
+EXPOSE 5001
 
 # Run the reconciliation application
-CMD ["python", "app.py"]
+CMD ["python", "pand.py"]
