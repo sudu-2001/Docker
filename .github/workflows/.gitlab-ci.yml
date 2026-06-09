@@ -1,0 +1,68 @@
+stages:
+  - build_and_push
+  - deploy
+
+variables:
+  # Replace 'your_dockerhub_username' with your actual Docker Hub account name
+  DOCKER_HUB_REPO: "your_dockerhub_username/reconciliation-app"
+  CONTAINER_NAME: "pandas-recon-service"
+  HOST_PORT: "5001"
+  CONTAINER_PORT: "5000"
+
+# Stage 1: Automate Build and Push to Docker Hub
+build_and_push_image:
+  stage: build_and_push
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  script:
+    - echo "Logging into Docker Hub..."
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
+    
+    - echo "Building Docker image..."
+    # Builds the image using the context of your subfolder
+    - docker build -t $DOCKER_HUB_REPO:latest ./docker/pandas/
+    # Tags the image with the unique Git commit SHA for version tracking
+    - docker tag $DOCKER_HUB_REPO:latest $DOCKER_HUB_REPO:$CI_COMMIT_SHORT_SHA
+    
+    - echo "Pushing images to Docker Hub..."
+    - docker push $DOCKER_HUB_REPO:latest
+    - docker push $DOCKER_HUB_REPO:$CI_COMMIT_SHORT_SHA
+
+# Stage 2: Automate Server Deployment via Pulling from Docker Hub
+deploy_app:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - echo "Connecting to production server to pull and deploy..."
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "
+        echo 'Logging target server into Docker Hub...';
+        echo '$DOCKER_PASSWORD' | docker login -u '$DOCKER_USER' --password-stdin;
+        
+        echo 'Stopping and cleaning up old container machinery...';
+        docker ps -q --filter name=$CONTAINER_NAME | xargs -r docker stop;
+        docker ps -a -q --filter name=$CONTAINER_NAME | xargs -r docker rm;
+        
+        echo 'Pulling the fresh image directly from Docker Hub...';
+        docker pull $DOCKER_HUB_REPO:latest;
+        
+        echo 'Launching container on Port $HOST_PORT...';
+        docker run -d \
+          --name $CONTAINER_NAME \
+          --restart always \
+          -p $HOST_PORT:$CONTAINER_PORT \
+          $DOCKER_HUB_REPO:latest;
+          
+        echo 'Cleaning up dangling unused images...';
+        docker image prune -f;
+      "
+  only:
+    - main
