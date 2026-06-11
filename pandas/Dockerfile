@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 5001
 
 # Run the reconciliation application
-CMD ["python", "pand.py"]
+CMD ["python", "file.py"]
