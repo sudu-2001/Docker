@@ -44,5 +44,5 @@ jobs:
         working-directory: stock-tracker/ansible
         run: |
           ansible -i inventory.ini servers \
-            -m command -a "docker ps" \
+            -m command -a "sudo docker ps" \
             --private-key ~/.ssh/ec2-keypair.pem
