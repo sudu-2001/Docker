@@ -1,0 +1,68 @@
+---
+- name: Deploy Stock Tracker to All Servers
+  hosts: servers
+  become: true
+
+  vars:
+    image: teacoffe/vishnu-2001:stock
+    container: stock-tracker
+    port: 5002
+    s3_bucket: sudarshan-app-logs
+    region: ap-south-1
+
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Start Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Install AWS CLI
+      apt:
+        name: awscli
+        state: present
+
+    - name: Pull latest image
+      command: docker pull {{ image }}
+
+    - name: Stop old container
+      command: docker stop {{ container }}
+      ignore_errors: yes
+
+    - name: Remove old container
+      command: docker rm {{ container }}
+      ignore_errors: yes
+
+    - name: Run new container
+      command: >
+        docker run -d
+        --name {{ container }}
+        -p {{ port }}:{{ port }}
+        --restart always
+        {{ image }}
+
+    - name: Verify container
+      command: docker ps
+      register: output
+
+    - name: Show status
+      debug:
+        var: output.stdout_lines
+
+    - name: Upload logs to S3
+      shell: |
+        TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
+        HOSTNAME=$(hostname)
+        docker logs {{ container }} > \
+          /tmp/{{ container }}_${HOSTNAME}_${TIMESTAMP}.log 2>&1
+        aws s3 cp \
+          /tmp/{{ container }}_${HOSTNAME}_${TIMESTAMP}.log \
+          s3://{{ s3_bucket }}/stock-tracker/{{ inventory_hostname }}/
+      environment:
+        AWS_DEFAULT_REGION: "{{ region }}"

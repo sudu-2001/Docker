@@ -1,0 +1,6 @@
+flask==3.0.3
+flask-socketio==5.3.6
+yfinance==0.2.38
+pandas==2.2.2
+numpy==1.26.4
+eventlet==0.35.1
