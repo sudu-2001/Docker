@@ -5,11 +5,24 @@ import threading
 import time
 import logging
 import socket
+import sys
+import functools
 
+# Force stdout flush immediately
+print = functools.partial(print, flush=True)
+
+# Logging setup
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    force=True
 )
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+handler.flush = sys.stdout.flush
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logging.getLogger().addHandler(handler)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'sudarshan-stock-tracker'
